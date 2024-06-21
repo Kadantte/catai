@@ -1,23 +1,18 @@
+import type {LLamaChatPromptOptions, LlamaChatSession, Token} from 'node-llama-cpp';
 import {ChatContext} from '../../../chat-context.js';
-import createChatWrapper from './chat-wrapper/chat-wrapper.js';
-import type NodeLlamaCpp from './node-llama-cpp-v2.js';
-import type {LlamaChatSession, LlamaModel} from 'node-llama-cpp';
 
-export default class NodeLlamaCppChat extends ChatContext {
-    private _session: LlamaChatSession;
+export default class NodeLlamaCppChat extends ChatContext<LLamaChatPromptOptions> {
 
-    constructor(protected _parent: NodeLlamaCpp, model: LlamaModel, private _package: typeof import('node-llama-cpp')) {
+    constructor(protected _promptSettings: Partial<LLamaChatPromptOptions>, private _session: LlamaChatSession) {
         super();
-        this._session = new _package.LlamaChatSession({
-            context: new _package.LlamaContext({model}),
-            promptWrapper: createChatWrapper(_package, _parent.modelSettings.settings?.wrapper),
-            systemPrompt: _parent.modelSettings.settings?.systemPrompt,
-            printLLamaSystemInfo: _parent.modelSettings.settings?.printLLamaSystemInfo,
-            conversationHistory: _parent.modelSettings.settings?.conversationHistory
-        });
     }
 
-    public async prompt(prompt: string, onToken?: (token: string) => void): Promise<string | null> {
+    public async prompt(prompt: string, onTokenText?: ((token: string) => void) | Partial<LLamaChatPromptOptions>, overrideSettings?: Partial<LLamaChatPromptOptions>): Promise<string | null> {
+        if (typeof onTokenText !== 'function') {
+            overrideSettings = onTokenText as Partial<LLamaChatPromptOptions>;
+            onTokenText = undefined;
+        }
+
         this.emit('abort', 'Aborted by new prompt');
         const abort = new AbortController();
         const closeCallback = () => {
@@ -28,10 +23,11 @@ export default class NodeLlamaCppChat extends ChatContext {
 
         let response = null;
         try {
+            const allSettings: LLamaChatPromptOptions = Object.assign({}, this._promptSettings, overrideSettings);
             response = await this._session.prompt(prompt, {
+                ...allSettings,
                 signal: abort.signal,
-                onToken: tokens => this._onToken(tokens, onToken),
-                maxTokens: this._parent.modelSettings.settings?.maxTokens,
+                onToken: tokens => this._onToken(tokens, onTokenText),
             });
         } catch (error: any) {
             this.emit('error', error.message);
@@ -43,8 +39,8 @@ export default class NodeLlamaCppChat extends ChatContext {
         return response;
     }
 
-    private _onToken(token: number[], onToken?: (token: string) => void) {
-        const text = this._session.context!.decode(Uint32Array.from(token));
+    private _onToken(tokens: Token[], onToken?: (token: string) => void) {
+        const text = this._session.context!.model.detokenize(tokens);
         this.emit('token', text);
         onToken?.(text);
     }

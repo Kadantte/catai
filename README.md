@@ -27,7 +27,7 @@ Make sure you have [Node.js](https://nodejs.org/en/) (**download current**) inst
 ```bash
 npm install -g catai
 
-catai install vicuna-7b-16k-q4_k_s
+catai install meta-llama-3-8b-q4_k_m
 catai up
 ```
 
@@ -57,6 +57,7 @@ Commands:
   active                           Show active model
   remove|rm [options] [models...]  Remove a model
   uninstall                        Uninstall server and delete all models
+  node-llama-cpp|cpp [options]     Node llama.cpp CLI - recompile node-llama-cpp binaries
   help [command]                   display help for command
 ```
 
@@ -92,14 +93,6 @@ This package uses [node-llama-cpp](https://github.com/withcatai/node-llama-cpp) 
 - linux-ppc64le
 - win32-x64-msvc
 
-### Memory usage
-Runs on most modern computers. Unless your computer is very very old, it should work.
-
-According to [a llama.cpp discussion thread](https://github.com/ggerganov/llama.cpp/issues/13), here are the memory requirements:
-
-- 7B => ~4 GB
-- 13B => ~8 GB
-- 30B => ~16 GB
 
 ### Good to know
 - All download data will be downloaded at `~/catai` folder by default.
@@ -124,6 +117,71 @@ const data = await response.text();
 ```
 
 For more information, please read the [API guide](https://github.com/withcatai/catai/blob/main/docs/api.md)
+
+## Development API
+
+You can also use the development API to interact with the model.
+
+```ts
+import {createChat, downloadModel, initCatAILlama, LlamaJsonSchemaGrammar} from "catai";
+
+// skip downloading the model if you already have it
+await downloadModel("meta-llama-3-8b-q4_k_m");
+
+const llama = await initCatAILlama();
+const chat = await createChat({
+    model: "meta-llama-3-8b-q4_k_m"
+});
+
+const fullResponse = await chat.prompt("Give me array of random numbers (10 numbers)", {
+    grammar: new LlamaJsonSchemaGrammar(llama, {
+        type: "array",
+        items: {
+            type: "number",
+            minimum: 0,
+            maximum: 100
+        },
+    }),
+    topP: 0.8,
+    temperature: 0.8,
+});
+
+console.log(fullResponse); // [10, 2, 3, 4, 6, 9, 8, 1, 7, 5]
+```
+
+(For the full list of model, run `catai models`)
+
+### Node-llama-cpp@beta low level integration
+
+You can use the model with [node-llama-cpp@beta](https://github.com/withcatai/node-llama-cpp/pull/105)
+
+CatAI enables you to easily manage the models and chat with them.
+
+```ts
+import {downloadModel, getModelPath, initCatAILlama, LlamaChatSession} from 'catai';
+
+// download the model, skip if you already have the model
+await downloadModel(
+    "https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q2_K.gguf?download=true",
+    "llama3"
+);
+
+// get the model path with catai
+const modelPath = getModelPath("llama3");
+
+const llama = await initCatAILlama();
+const model = await llama.loadModel({
+    modelPath
+});
+
+const context = await model.createContext();
+const session = new LlamaChatSession({
+    contextSequence: context.getSequence()
+});
+
+const a1 = await session.prompt("Hi there, how are you?");
+console.log("AI: " + a1);
+```
 
 ## Configuration
 

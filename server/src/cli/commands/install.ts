@@ -2,7 +2,7 @@ import {Command} from 'commander';
 import ModelCompatibilityChecker from '../../manage-models/about-models/model-compatibility-checker.js';
 import prompts from 'prompts';
 import AppDb from '../../storage/app-db.js';
-import FetchModels from '../../manage-models/about-models/fetch-models/fetch-models.js';
+import FetchModels from '../../manage-models/about-models/fetch-models.js';
 
 export const installCommand = new Command('install');
 
@@ -52,7 +52,12 @@ async function selectModelInstall() {
         type: 'select',
         name: 'model',
         message: 'Select a model to install',
-        choices: aboutModels.sort((last, current) => Number(last.modelInstalled) - Number(current.modelInstalled)).map(({model, compatibility, note, modelInstalled}) => ({
+        choices: aboutModels.filter(x => x.catAIVersionCompatibility).sort((last, current) => Number(last.modelInstalled) - Number(current.modelInstalled)).map(({
+                                                                                                                                                                     model,
+                                                                                                                                                                     compatibility,
+                                                                                                                                                                     note,
+                                                                                                                                                                     modelInstalled
+                                                                                                                                                                 }) => ({
             title: model,
             description: `${compatibility ? '': 'Not Compatible | '}${note}`,
             value: model,
